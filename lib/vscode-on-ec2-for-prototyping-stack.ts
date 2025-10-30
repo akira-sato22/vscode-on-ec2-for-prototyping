@@ -97,8 +97,21 @@ sudo dnf install -y python3.11 python3.11-pip
 sudo alternatives --set python3 /usr/bin/python3.11
 python3 -m pip install --upgrade pip
 
-# Install AWS SAM CLI
+# Setup PATH for all users (system-wide)
+sudo tee /etc/profile.d/custom-path.sh > /dev/null <<'PROFILE_EOF'
+export PATH=$PATH:/usr/local/bin
+PROFILE_EOF
+sudo chmod +x /etc/profile.d/custom-path.sh
+
+# Setup PATH for ec2-user's local bin
+echo 'export PATH=$PATH:$HOME/.local/bin' >> /home/ec2-user/.bashrc
+sudo chown ec2-user:ec2-user /home/ec2-user/.bashrc
+
+# Install AWS SAM CLI as ec2-user
+sudo -u ec2-user bash <<'SAM_EOF'
+export PATH=$PATH:$HOME/.local/bin
 pip3 install --user aws-sam-cli
+SAM_EOF
 
 # Install Terraform
 sudo dnf install -y dnf-plugins-core
@@ -109,11 +122,7 @@ sudo dnf install -y terraform
 curl -s https://d38mqdgab7vhke.cloudfront.net/q/latest/Q-latest-installer-linux-x86_64.sh -o /tmp/q-installer.sh
 chmod +x /tmp/q-installer.sh
 sudo /tmp/q-installer.sh --install-dir /usr/local/bin --bin-dir /usr/local/bin
-rm /tmp/q-installer.sh
-
-# Ensure ec2-user can use all installed tools
-echo 'export PATH=$PATH:/usr/local/bin:$HOME/.local/bin' >> /home/ec2-user/.bashrc
-sudo chown ec2-user:ec2-user /home/ec2-user/.bashrc`
+rm /tmp/q-installer.sh`
     );
 
     new cdk.CfnOutput(this, "InstanceID", {
