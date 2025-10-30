@@ -92,10 +92,9 @@ sudo mkdir -p /usr/local/lib/docker/cli-plugins
 sudo curl -SL "https://github.com/docker/compose/releases/download/\${DOCKER_COMPOSE_VERSION}/docker-compose-linux-x86_64" -o /usr/local/lib/docker/cli-plugins/docker-compose
 sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
-# Install Python 3.13 and pip
-sudo dnf install -y python3.11 python3.11-pip
-sudo alternatives --set python3 /usr/bin/python3.11
-python3 -m pip install --upgrade pip
+# Install pip
+sudo dnf install -y python3-pip
+sudo python3 -m pip install --upgrade pip
 
 # Setup PATH for all users (system-wide)
 sudo tee /etc/profile.d/custom-path.sh > /dev/null <<'PROFILE_EOF'
@@ -116,13 +115,7 @@ SAM_EOF
 # Install Terraform
 sudo dnf install -y dnf-plugins-core
 sudo dnf config-manager --add-repo https://rpm.releases.hashicorp.com/AmazonLinux/hashicorp.repo
-sudo dnf install -y terraform
-
-# Install Amazon Q CLI
-curl -s https://d38mqdgab7vhke.cloudfront.net/q/latest/Q-latest-installer-linux-x86_64.sh -o /tmp/q-installer.sh
-chmod +x /tmp/q-installer.sh
-sudo /tmp/q-installer.sh --install-dir /usr/local/bin --bin-dir /usr/local/bin
-rm /tmp/q-installer.sh`
+sudo dnf install -y terraform`
     );
 
     new cdk.CfnOutput(this, "InstanceID", {
