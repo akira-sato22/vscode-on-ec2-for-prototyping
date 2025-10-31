@@ -1,123 +1,206 @@
-> [!NOTE]
-> 日本語のドキュメントは [こちら](/README.jp.md)
+# Visual Studio Code on EC2 (カスタマイズ版)
 
-# Visual Studio Code on EC2
+このリポジトリは [aws-samples/vscode-on-ec2-for-prototyping](https://github.com/aws-samples/vscode-on-ec2-for-prototyping) をフォークし、機能を拡張したものです。
 
-This repository introduces how to access and use VSCode hosted on EC2 from a browser. The connection is made via Session Manager, so IAM permissions are used for authentication. The access destination will be localhost. Please note that this repository does not introduce connecting from your local VSCode to an EC2 instance via Remote SSH.
+**オリジナル版のドキュメント**: [README.original.md](README.original.md) をご参照ください。
 
-## Features
-- You can use VSCode from a browser
-- Node.js environment is installed
-- 128 GB of storage is provided by default
-- aws cli can be executed with AdministratorAccess equivalent permissions
-- The EC2 instance hosting VSCode belongs to a Private Subnet, so it is not exposed to the internet. The connection is made via Session Manager.
+## オリジナル版からの主な変更点
 
-## Prerequisites
-- Node.js runtime environment
-- [`aws` command](https://aws.amazon.com/cli/) (AdministratorAccess equivalent permissions are required to run AWS CDK)
-- `git` command
-- `jq` command (not required. Needed when executing session.sh described later)
+### 1. 複数インスタンス対応
+複数のVSCodeインスタンスを同時にデプロイできるようになりました。開発環境、検証環境など、用途に応じて複数の独立した環境を構築できます。
 
-If it is difficult to prepare the environment locally, [CloudShell](https://console.aws.amazon.com/cloudshell/home) can be used as an alternative, but the steps from `session.sh` onwards need to be performed locally (because a session is created to localhost via SessionManager).
+### 2. 開発ツールの大幅拡充
+EC2インスタンスには以下の開発ツールがプリインストールされています：
 
-## Installation
+#### インフラストラクチャツール
+- **AWS CDK**: インフラをコードとして管理
+- **Terraform**: マルチクラウド対応のIaCツール
+- **AWS SAM CLI**: サーバーレスアプリケーションの開発・デプロイ
 
-First, clone this repository.
+#### コンテナ関連
+- **Docker**: コンテナランタイム
+- **Docker Compose V2**: マルチコンテナアプリケーションの管理
+
+#### 言語・ランタイム
+- **Node.js**: nvm経由でインストール（バージョン指定可能）
+- **Python 3 & pip**: Python開発環境
+
+#### その他
+- **AWS CLI**: 最新版
+- **Git**: バージョン管理
+- **Visual Studio Code**: ブラウザからアクセス可能
+
+すべてのツールは `ec2-user` で即座に利用可能で、AdministratorAccess相当の権限でAWSリソースを操作できます。
+
+## 前提条件
+
+- Node.js実行環境
+- [`aws` コマンド](https://aws.amazon.com/jp/cli/) (AdministratorAccess相当の権限が必要)
+- `git` コマンド
+- `jq` コマンド (session.sh実行時に必要)
+
+手元に環境を用意するのが難しい場合は [CloudShell](https://console.aws.amazon.com/cloudshell/home) で代替可能ですが、`session.sh` 以降の手順は手元で実行する必要があります。
+
+## インストール
+
+### 1. リポジトリのクローン
 
 ```bash
-git clone https://github.com/aws-samples/vscode-on-ec2-for-prototyping
+git clone <このリポジトリのURL>
+cd vscode-on-ec2-for-prototyping
 ```
 
-The application uses the [AWS Cloud Development Kit](https://aws.amazon.com/cdk/)(CDK) for deployment. Node.js is required to run. First, run the following command. Run all commands from the root of the repository.
+### 2. 依存関係のインストール
 
 ```bash
 npm ci
 ```
 
-If you have never used CDK before, a [Bootstrap](https://docs.aws.amazon.com/cdk/v2/guide/bootstrapping.html) process is required only the first time. The following command is not required if already bootstrapped.
+### 3. CDK Bootstrap（初回のみ）
+
+CDKを初めて使用する場合は、以下のコマンドを実行してください：
 
 ```bash
 npx cdk bootstrap
 ```
 
-Then deploy the AWS resources with the following command:
+### 4. デプロイ
 
 ```bash
 npx cdk deploy
 ```
 
-After deployment completes, check that the EC2 instance was created in the [management console](https://console.aws.amazon.com/ec2/home#Instances). Also please confirm that the Status check changes from Initializing to checks passed. 
+デプロイが完了すると、作成されたインスタンスのInstance IDとPrivate IPが出力されます。
 
-Once checks passed is confirmed, run `session.sh` to create a session:
+### 5. VSCodeへの接続
+
+EC2インスタンスのStatus checkが `checks passed` になったことを確認してから、以下のコマンドでセッションを作成します：
 
 ```bash
-./session.sh
+./session.sh <インスタンス番号>
 ```
 
-If Unix-like commands cannot be used locally, run the following command instead. The Instance ID and Private IP can be confirmed in the management console mentioned above, or output when running `cdk deploy` as `VscodeOnEc2ForPrototypingStack.InstanceID` and `VscodeOnEc2ForPrototypingStack.PrivateIP` respectively.
+例：
+```bash
+./session.sh 1  # 1番目のインスタンスに接続（ポート: 8080）
+./session.sh 2  # 2番目のインスタンスに接続（ポート: 8081）
+```
+
+セッションが確立されたら、ブラウザで以下にアクセスしてください：
+- インスタンス1: http://localhost:8080
+- インスタンス2: http://localhost:8081
+- （以降、8080 + インスタンス番号）
+
+#### Unix系コマンドが使えない場合
+
+以下のコマンドを手動で実行してください：
 
 ```bash
-# Replace the two values enclosed in <>
-
+# ap-northeast-1 リージョンの場合
 aws ssm start-session \
-    --target <EC2 instance Instance ID> \
+    --region ap-northeast-1 \
+    --target <Instance ID> \
     --document-name AWS-StartPortForwardingSessionToRemoteHost \
-    --parameters "{\"portNumber\":[\"8080\"],\"localPortNumber\":[\"8080\"],\"host\":[\"<EC2 instance Private IP>\"]}"
+    --parameters "portNumber=8080,localPortNumber=8080,host=<Private IP>"
 ```
 
-Once the session is created, open http://localhost:8080 in your browser. If it does not connect, please refer to [Troubleshooting](#Troubleshooting).
+Instance IDとPrivate IPは、`cdk deploy`時の出力、またはマネージメントコンソールで確認できます。
 
-## Configurations
+## 設定のカスタマイズ
 
-The values in the `context` of [cdk.json](/cdk.json) can be modified to change some items.
+[cdk.json](cdk.json) の `context` セクションで以下の値を変更できます：
 
-- `volume` The storage size (GB) of the EC2 instance hosting VSCode
-- `nvm` The version of `nvm` used to install Node.js
-- `node` The version of Node.js
+- `volume`: EC2インスタンスのストレージサイズ（GB）- デフォルト: 128
+- `nvm`: nvmのバージョン - デフォルト: 0.39.7
+- `node`: Node.jsのバージョン - デフォルト: 20.11.0
 
-## Troubleshooting
+インスタンス数を変更する場合は、[bin/vscode-on-ec2-for-prototyping.ts](bin/vscode-on-ec2-for-prototyping.ts) の `instanceCount` パラメータを変更してください。
 
-The same phenomenon described in [this Issue](https://github.com/amazonlinux/amazon-linux-2023/issues/397) may occur. **If the browser cannot connect after creating a session, first suspect this.
+## インストール済みツールの使用例
 
-To check for errors, first open the [management console](https://console.aws.amazon.com/ec2/home#Instances) and select the created EC2 instance. Then click Connect at the top and open the Session Manager tab and click Connect.
+### AWS CDKでインフラを構築
 
-Open a terminal and run the following command. This will show the execution results of the commands run when initializing the EC2 instance:
+```bash
+# 新しいCDKプロジェクトを作成
+mkdir my-cdk-project && cd my-cdk-project
+cdk init app --language typescript
+```
+
+### Dockerコンテナの実行
+
+```bash
+# Dockerの動作確認
+docker run hello-world
+
+# Docker Composeの使用
+docker compose version
+```
+
+### Terraformでインフラ管理
+
+```bash
+# Terraformの初期化
+terraform init
+
+# プランの確認
+terraform plan
+```
+
+### AWS SAM CLIでサーバーレス開発
+
+```bash
+# SAMアプリケーションの初期化
+sam init
+
+# ローカルでのテスト
+sam local start-api
+```
+
+## トラブルシューティング
+
+### VSCodeに接続できない場合
+
+[こちらのIssue](https://github.com/amazonlinux/amazon-linux-2023/issues/397) と同様の現象が発生することがあります。
+
+#### 解決手順：
+
+1. マネージメントコンソールからEC2インスタンスに接続（Session Manager経由）
+2. 以下のコマンドでログを確認：
 
 ```bash
 sudo cat /var/log/cloud-init-output.log
 ```
 
-If this shows an error like `[Errno 2] No such file or directory: '/var/cache/dnf/amazonlinux-...`, the code command installation failed. In that case, reinstall with:
+3. `[Errno 2] No such file or directory: '/var/cache/dnf/amazonlinux-...` というエラーがある場合は、以下を実行：
 
 ```bash
+# codeの再インストール
 sudo yum install -y code
-```
 
-After successful installation, run:
-
-```bash
+# code-serverの起動
 sudo systemctl start code-server
 ```
 
-Try creating a session with `session.sh` and connecting in the browser (http://localhost:8080) again. You will no longer need to run these steps again after the initial code installation, such as when closing and reopening the browser tab, or restarting the EC2 instance.
+4. 再度 `session.sh` でセッションを作成し、ブラウザでアクセス
 
-## Future works
-- [ ] Make it possible to import existing VPC
-- [ ] Allow selecting instance type
+## クリーンアップ
 
-## Cleanup
+環境を削除する場合は、以下のコマンドを実行してください：
 
-To delete the environment, run the following command:
-
-```
+```bash
 npx cdk destroy
 ```
 
-## Security
+## 参考情報
 
-See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
+- オリジナル版のREADME: [README.original.md](README.original.md)
+- オリジナルリポジトリ: [aws-samples/vscode-on-ec2-for-prototyping](https://github.com/aws-samples/vscode-on-ec2-for-prototyping)
 
-## License
+## セキュリティ
 
-This library is licensed under the MIT-0 License. See the LICENSE file.
+セキュリティに関する情報は [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) をご覧ください。
+
+## ライセンス
+
+このライブラリはMIT-0ライセンスの下でライセンスされています。詳細はLICENSEファイルをご覧ください。
 
